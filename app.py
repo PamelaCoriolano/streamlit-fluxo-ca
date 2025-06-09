@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 
 st.set_page_config(page_title="Análise de Fluxo de Loja", layout="wide")
 
@@ -93,10 +94,24 @@ if uploaded_file:
          # Pivot para gráfico
          pivot = comparativo.pivot(index='d-Location[Location Code]', columns='Período', values='Fluxo loja').fillna(0)
 
+         # Calcula a diferença percentual
+         pivot['Diferença (%)'] = ((pivot['Durante Campanha'] - pivot['Período de Comparação']) / pivot['Período de Comparação']) * 100
+
          # Gráfico
          st.subheader("📊 Comparativo de Fluxo por Loja")
          fig, ax = plt.subplots(figsize=(10, 6))
-         pivot.plot(kind='bar', ax=ax)
+         bars = pivot[['Durante Campanha', 'Período de Comparação']].plot(kind='bar', ax=ax)
+
+         # Adiciona rótulos de valor e percentual
+         for bar in bars.containers:
+             ax.bar_label(bar, fmt='%.0f', label_type='edge')
+
+         # Adiciona rótulos de diferença percentual acima das barras
+         for i, idx in enumerate(pivot.index):
+             diff_percent = pivot.loc[idx, 'Diferença (%)']
+             ax.text(i, max(pivot.loc[idx, ['Durante Campanha', 'Período de Comparação']]) + 5,
+                     f"{diff_percent:.1f}%", ha='center', fontsize=9, color='red')
+
          ax.set_ylabel("Fluxo Total")
          ax.set_xlabel("Location Code")
          ax.set_title("Fluxo por Loja - Comparação de Períodos")
@@ -109,4 +124,3 @@ if uploaded_file:
          # Download
          csv = df_relevante.to_csv(index=False).encode('utf-8')
          st.download_button("📥 Baixar planilha analisada", data=csv, file_name='fluxo_comparado_por_loja.csv', mime='text/csv')
-
