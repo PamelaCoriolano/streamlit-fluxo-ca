@@ -126,10 +126,38 @@ if uploaded_file:
          csv = pivot.to_csv(index=False).encode('utf-8')
          st.download_button("📥 Baixar planilha analisada", data=csv, file_name='fluxo_comparado_por_loja.csv', mime='text/csv')
 
-         # Exportação em PDF
-         pdf = FPDF()
-         pdf.add_page()
-         pdf.set_font("Arial", size=12)
-         pdf.cell(200, 10, txt="Relatório de Análise de Fluxo", ln=True, align='C')
-         pdf.output("relatorio_fluxo.pdf")
-         st.download_button("📥 Exportar relatório em PDF", data=open("relatorio_fluxo.pdf", "rb"), file_name="relatorio_fluxo.pdf", mime="application/pdf")
+         # Função para gerar o PDF
+         def gerar_pdf(titulo, texto):
+             pdf = FPDF()
+             pdf.add_page()
+             pdf.set_font("Arial", size=12)
+
+             # Adiciona título
+             pdf.set_font("Arial", style="B", size=16)
+             pdf.cell(200, 10, txt=titulo, ln=True, align='C')
+
+             # Adiciona texto
+             pdf.set_font("Arial", size=12)
+             pdf.multi_cell(0, 10, texto)
+
+             # Salva o PDF em memória
+             pdf_output = BytesIO()
+             pdf.output(pdf_output)
+             pdf_output.seek(0)
+             return pdf_output
+
+         # Gera o conteúdo do PDF
+         titulo = "Relatório de Análise de Fluxo"
+         texto = """
+         Este relatório contém a análise de fluxo de loja com base nos filtros aplicados.
+         Os gráficos e tabelas apresentados refletem os dados processados durante a execução.
+         """
+         pdf_file = gerar_pdf(titulo, texto)
+
+         # Botão para exportar o PDF
+         st.download_button(
+             label="📥 Exportar relatório em PDF",
+             data=pdf_file,
+             file_name="relatorio_fluxo.pdf",
+             mime="application/pdf"
+         )
