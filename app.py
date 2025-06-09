@@ -97,7 +97,7 @@ if uploaded_file:
          # Calcula a diferença percentual
          pivot['Diferença (%)'] = ((pivot['Durante Campanha'] - pivot['Período de Comparação']) / pivot['Período de Comparação']) * 100
 
-         # Gráfico
+         # Gráfico de barras
          st.subheader("📊 Comparativo de Fluxo por Loja")
          fig, ax = plt.subplots(figsize=(10, 6))
          bars = pivot[['Durante Campanha', 'Período de Comparação']].plot(kind='bar', ax=ax)
@@ -109,12 +109,28 @@ if uploaded_file:
          # Adiciona rótulos de diferença percentual acima das barras
          for i, idx in enumerate(pivot.index):
              diff_percent = pivot.loc[idx, 'Diferença (%)']
+             color = 'green' if diff_percent > 0 else 'red'
              ax.text(i, max(pivot.loc[idx, ['Durante Campanha', 'Período de Comparação']]) + 5,
-                     f"{diff_percent:.1f}%", ha='center', fontsize=9, color='red')
+                     f"{diff_percent:.1f}%", ha='center', fontsize=9, color=color)
 
          ax.set_ylabel("Fluxo Total")
          ax.set_xlabel("Location Code")
          ax.set_title("Fluxo por Loja - Comparação de Períodos")
+         st.pyplot(fig)
+
+         # Novo gráfico com eixo de data
+         st.subheader("📈 Evolução do Fluxo ao Longo do Tempo")
+         fluxo_por_data = df_relevante.groupby(['CDate', 'Período'])['Fluxo loja'].sum().reset_index()
+
+         fig, ax = plt.subplots(figsize=(12, 6))
+         for periodo, grupo in fluxo_por_data.groupby('Período'):
+             ax.plot(grupo['CDate'], grupo['Fluxo loja'], marker='o', label=periodo)
+
+         ax.set_ylabel("Fluxo Total")
+         ax.set_xlabel("Data")
+         ax.set_title("Evolução do Fluxo ao Longo do Tempo")
+         ax.legend(title="Período")
+         plt.xticks(rotation=45)
          st.pyplot(fig)
 
          # Tabela
