@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
+from scipy.signal import find_peaks
 
 st.set_page_config(page_title="Análise de Fluxo de Loja", layout="wide")
 
@@ -88,48 +88,29 @@ if uploaded_file:
          # Filtra apenas os períodos relevantes
          df_relevante = df_filtrado[df_filtrado['Período'].isin(['Durante Campanha', 'Período de Comparação'])]
 
-         # Agrupa por loja e período
-         comparativo = df_relevante.groupby(['d-Location[Location Code]', 'Período'])['Fluxo loja'].sum().reset_index()
+         # Novo gráfico com eixo de data (uma única linha)
+         st.subheader("📈 Evolução do Fluxo ao Longo do Tempo (Linha Única)")
+         fluxo_por_data = df_relevante.groupby('CDate')['Fluxo loja'].sum().reset_index()
 
-         # Pivot para gráfico
-         pivot = comparativo.pivot(index='d-Location[Location Code]', columns='Período', values='Fluxo loja').fillna(0)
+         # Identificar picos no fluxo
+         fluxo_valores = fluxo_por_data['Fluxo loja'].values
+         indices_picos, _ = find_peaks(fluxo_valores, height=0)  # Detecta picos
+         picos = fluxo_por_data.iloc[indices_picos]
 
-         # Calcula a diferença percentual
-         pivot['Diferença (%)'] = ((pivot['Durante Campanha'] - pivot['Período de Comparação']) / pivot['Período de Comparação']) * 100
-
-         # Gráfico de barras
-         st.subheader("📊 Comparativo de Fluxo por Loja")
-         fig, ax = plt.subplots(figsize=(10, 6))
-         bars = pivot[['Durante Campanha', 'Período de Comparação']].plot(kind='bar', ax=ax)
-
-         # Adiciona rótulos de valor e percentual
-         for bar in bars.containers:
-             ax.bar_label(bar, fmt='%.0f', label_type='edge')
-
-         # Adiciona rótulos de diferença percentual acima das barras
-         for i, idx in enumerate(pivot.index):
-             diff_percent = pivot.loc[idx, 'Diferença (%)']
-             color = 'green' if diff_percent > 0 else 'red'
-             ax.text(i, max(pivot.loc[idx, ['Durante Campanha', 'Período de Comparação']]) + 5,
-                     f"{diff_percent:.1f}%", ha='center', fontsize=9, color=color)
-
-         ax.set_ylabel("Fluxo Total")
-         ax.set_xlabel("Location Code")
-         ax.set_title("Fluxo por Loja - Comparação de Períodos")
-         st.pyplot(fig)
-
-         # Novo gráfico com eixo de data
-         st.subheader("📈 Evolução do Fluxo ao Longo do Tempo")
-         fluxo_por_data = df_relevante.groupby(['CDate', 'Período'])['Fluxo loja'].sum().reset_index()
-
+         # Plotar gráfico
          fig, ax = plt.subplots(figsize=(12, 6))
-         for periodo, grupo in fluxo_por_data.groupby('Período'):
-             ax.plot(grupo['CDate'], grupo['Fluxo loja'], marker='o', label=periodo)
+         ax.plot(fluxo_por_data['CDate'], fluxo_por_data['Fluxo loja'], label='Fluxo Total', color='blue', marker='o')
+         
+         # Destacar picos
+         ax.scatter(picos['CDate'], picos['Fluxo loja'], color='red', label='Picos', zorder=5)
+         for _, row in picos.iterrows():
+             ax.annotate(f"{row['Fluxo loja']:.0f}", (row['CDate'], row['Fluxo loja']),
+                         textcoords="offset points", xytext=(0, 10), ha='center', fontsize=9, color='red')
 
          ax.set_ylabel("Fluxo Total")
          ax.set_xlabel("Data")
-         ax.set_title("Evolução do Fluxo ao Longo do Tempo")
-         ax.legend(title="Período")
+         ax.set_title("Evolução do Fluxo ao Longo do Tempo com Picos Destacados")
+         ax.legend()
          plt.xticks(rotation=45)
          st.pyplot(fig)
 
