@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+from io import BytesIO
+from fpdf import FPDF
 
 st.set_page_config(page_title="Análise de Fluxo de Loja", layout="wide")
 
@@ -32,6 +34,10 @@ if uploaded_file:
  locais = sorted(df['d-Location[Location Code]'].dropna().unique())
  locais_selecionados = st.sidebar.multiselect("Selecionar Location Code(s)", locais, default=locais[:3])
 
+ # Filtro adicional: d-Location[StCd]
+ estados = sorted(df['d-Location[StCd]'].dropna().unique())
+ estado_selecionado = st.sidebar.multiselect("Selecionar Estado(s)", estados, default=estados)
+
  # Semanas disponíveis
  semanas = sorted(df['d-Calendar[Short Desc. Week]'].dropna().unique())
  semanas_curtas = st.sidebar.multiselect("Selecionar Semanas Curtas (opcional)", semanas)
@@ -39,7 +45,8 @@ if uploaded_file:
  # Filtra base principal
  df_filtrado = df[
      (df['d-Calendar[Cea Year]'] == ano_selecionado) &
-     (df['d-Location[Location Code]'].isin(locais_selecionados))
+     (df['d-Location[Location Code]'].isin(locais_selecionados)) &
+     (df['d-Location[StCd]'].isin(estado_selecionado))
  ]
 
  # Se filtro de semana curta for aplicado
@@ -93,10 +100,19 @@ if uploaded_file:
          # Pivot para gráfico
          pivot = comparativo.pivot(index='d-Location[Location Code]', columns='Período', values='Fluxo loja').fillna(0)
 
-         # Gráfico
+         # Calcula a diferença percentual
+         if 'Durante Campanha' in pivot.columns and 'Período de Comparação' in pivot.columns:
+             pivot['% Diferença'] = ((pivot['Durante Campanha'] - pivot['Período de Comparação']) / pivot['Período de Comparação']) * 100
+
+         # Gráfico de barras com rótulos e diferença percentual
          st.subheader("📊 Comparativo de Fluxo por Loja")
          fig, ax = plt.subplots(figsize=(10, 6))
-         pivot.plot(kind='bar', ax=ax)
+         bars = pivot[['Durante Campanha', 'Período de Comparação']].plot(kind='bar', ax=ax)
+
+         # Adiciona rótulos nas barras
+         for bar in bars.containers:
+             ax.bar_label(bar, fmt='%.0f')
+
          ax.set_ylabel("Fluxo Total")
          ax.set_xlabel("Location Code")
          ax.set_title("Fluxo por Loja - Comparação de Períodos")
@@ -104,8 +120,16 @@ if uploaded_file:
 
          # Tabela
          st.subheader("📋 Dados detalhados")
-         st.dataframe(df_relevante)
+         st.dataframe(pivot)
 
          # Download
-         csv = df_relevante.to_csv(index=False).encode('utf-8')
+         csv = pivot.to_csv(index=False).encode('utf-8')
          st.download_button("📥 Baixar planilha analisada", data=csv, file_name='fluxo_comparado_por_loja.csv', mime='text/csv')
+
+         # Exportação em PDF
+         pdf = FPDF()
+         pdf.add_page()
+         pdf.set_font("Arial", size=12)
+         pdf.cell(200, 10, txt="Relatório de Análise de Fluxo", ln=True, align='C')
+         pdf.output("relatorio_fluxo.pdf")
+         st.download_button("📥 Exportar relatório em PDF", data=open("relatorio_fluxo.pdf", "rb"), file_name="relatorio_fluxo.pdf", mime="application/pdf")
