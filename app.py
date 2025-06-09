@@ -11,38 +11,53 @@ st.markdown("Faça upload da planilha com as colunas corretas para iniciar a an�
 uploaded_file = st.file_uploader("📁 Upload do arquivo Excel", type=["xlsx"])
 
 if uploaded_file:
-    # Carrega o dataframe
+    # Carrega e prepara os dados
     df = pd.read_excel(uploaded_file)
 
-    # Converte data
+    # Renomeia coluna para facilitar visualização
+    df = df.rename(columns={'[v_calculationGroups]': 'Fluxo loja'})
+
+    # Converte e ordena datas
     df['CDate'] = pd.to_datetime(df['d-Calendar[CDate]'], dayfirst=True)
     df = df.sort_values('CDate')
 
     # Sidebar: Filtros
     st.sidebar.header("Filtros")
 
-    # Filtro por ano
+    # Ano
     anos = sorted(df['d-Calendar[Cea Year]'].dropna().unique())
     ano_selecionado = st.sidebar.selectbox("Selecionar Ano", anos)
 
-    # Filtro por Location Code
+    # Location Codes
     locais = sorted(df['d-Location[Location Code]'].dropna().unique())
-    local_selecionado = st.sidebar.selectbox("Selecionar Location Code", locais)
+    locais_selecionados = st.sidebar.multiselect("Selecionar Location Code(s)", locais, default=locais[:3])
 
-    # Filtragem por ano e local
+    # Semanas disponíveis
+    semanas = sorted(df['d-Calendar[Short Desc. Week]'].dropna().unique())
+    semanas_curtas = st.sidebar.multiselect("Selecionar Semanas Curtas (opcional)", semanas)
+
+    # Filtra base principal
     df_filtrado = df[
         (df['d-Calendar[Cea Year]'] == ano_selecionado) &
-        (df['d-Location[Location Code]'] == local_selecionado)
+        (df['d-Location[Location Code]'].isin(locais_selecionados))
     ]
 
+    # Se filtro de semana curta for aplicado
+    if semanas_curtas:
+        df_filtrado = df_filtrado[df_filtrado['d-Calendar[Short Desc. Week]'].isin(semanas_curtas)]
+        df_filtrado['Semana Curta'] = 'Sim'
+    else:
+        df_filtrado['Semana Curta'] = 'Não'
+
+    # Verifica se há dados
     if df_filtrado.empty:
         st.warning("Nenhum dado encontrado para os filtros selecionados.")
     else:
-        # Range da campanha
+        # Seleção do período de campanha
         min_date = df_filtrado['CDate'].min()
         max_date = df_filtrado['CDate'].max()
 
-        st.success(f"Dados filtrados: {local_selecionado} - {ano_selecionado} | Período de {min_date.date()} até {max_date.date()}")
+        st.success(f"Dados filtrados de {min_date.date()} até {max_date.date()} para os códigos selecionados.")
 
         campaign_range = st.date_input("Selecione o período da campanha", [min_date, max_date])
 
@@ -50,25 +65,30 @@ if uploaded_file:
             campaign_start = pd.Timestamp(campaign_range[0])
             campaign_end = pd.Timestamp(campaign_range[1])
 
-            # Classifica o período
+            # Define período
             df_filtrado['Período'] = df_filtrado['CDate'].apply(
                 lambda x: 'Durante Campanha' if campaign_start <= x <= campaign_end else 'Antes da Campanha'
             )
 
-            # Agrupa por período
-            fluxos = df_filtrado.groupby('Período')['Fluxo loja'].sum().reset_index()
+            # Agrupa por loja e período
+            comparativo = df_filtrado.groupby(['d-Location[Location Code]', 'Período'])['Fluxo loja'].sum().reset_index()
+
+            # Pivot para gráfico
+            pivot = comparativo.pivot(index='d-Location[Location Code]', columns='Período', values='Fluxo loja').fillna(0)
 
             # Gráfico
-            st.subheader("📈 Comparativo de Fluxo Total por Período")
-            fig, ax = plt.subplots()
-            ax.bar(fluxos['Período'], fluxos['Fluxo loja'], color=['gray', 'blue'])
-            ax.set_ylabel("Total de Fluxo")
+            st.subheader("📊 Comparativo de Fluxo por Loja")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            pivot.plot(kind='bar', ax=ax)
+            ax.set_ylabel("Fluxo Total")
+            ax.set_xlabel("Location Code")
+            ax.set_title("Fluxo por Loja - Antes vs. Durante Campanha")
             st.pyplot(fig)
 
-            # Tabela completa
-            st.subheader("📋 Tabela com todas as colunas e classificação de período")
+            # Tabela
+            st.subheader("📋 Dados detalhados")
             st.dataframe(df_filtrado)
 
             # Download
             csv = df_filtrado.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Baixar planilha analisada", data=csv, file_name='fluxo_analisado_completo.csv', mime='text/csv')
+            st.download_button("📥 Baixar planilha analisada", data=csv, file_name='fluxo_comparado_por_loja.csv', mime='text/csv')
