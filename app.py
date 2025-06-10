@@ -88,6 +88,35 @@ if uploaded_file:
          # Filtra apenas os períodos relevantes
          df_relevante = df_filtrado[df_filtrado['Período'].isin(['Durante Campanha', 'Período de Comparação'])]
 
+         # Gráfico de barras comparando Location Codes
+         st.subheader("📊 Comparativo de Fluxo por Loja")
+         comparativo = df_relevante.groupby(['d-Location[Location Code]', 'Período'])['Fluxo loja'].sum().reset_index()
+
+         # Pivot para gráfico
+         pivot = comparativo.pivot(index='d-Location[Location Code]', columns='Período', values='Fluxo loja').fillna(0)
+
+         # Calcula a diferença percentual
+         pivot['Diferença (%)'] = ((pivot['Durante Campanha'] - pivot['Período de Comparação']) / pivot['Período de Comparação']) * 100
+
+         fig, ax = plt.subplots(figsize=(10, 6))
+         bars = pivot[['Durante Campanha', 'Período de Comparação']].plot(kind='bar', ax=ax)
+
+         # Adiciona rótulos de valor e percentual
+         for bar in bars.containers:
+             ax.bar_label(bar, fmt='%.0f', label_type='edge')
+
+         # Adiciona rótulos de diferença percentual acima das barras
+         for i, idx in enumerate(pivot.index):
+             diff_percent = pivot.loc[idx, 'Diferença (%)']
+             color = 'green' if diff_percent > 0 else 'red'
+             ax.text(i, max(pivot.loc[idx, ['Durante Campanha', 'Período de Comparação']]) + 5,
+                     f"{diff_percent:.1f}%", ha='center', fontsize=9, color=color)
+
+         ax.set_ylabel("Fluxo Total")
+         ax.set_xlabel("Location Code")
+         ax.set_title("Fluxo por Loja - Comparação de Períodos")
+         st.pyplot(fig)
+
          # Novo gráfico com eixo de data (uma única linha)
          st.subheader("📈 Evolução do Fluxo ao Longo do Tempo (Linha Única)")
          fluxo_por_data = df_relevante.groupby('CDate')['Fluxo loja'].sum().reset_index()
